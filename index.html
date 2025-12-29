@@ -36,7 +36,7 @@
             bodyFat: '',
             water: '',
             muscle: '',
-            physique: '5',
+            physique: '',
             bmr: '',
             metabolicAge: '',
             boneMass: '',
@@ -55,8 +55,9 @@
         // --- Calculation Logic ---
         const calculateResults = () => {
             // Validation
-            if (!formData.name || !formData.age || !formData.height || !formData.weight || 
-                !formData.bodyFat || !formData.water || !formData.visceralFat || !formData.bmr) {
+            if (!formData.name || !formData.age || !formData.height || !formData.weight ||
+                !formData.bodyFat || !formData.water || !formData.visceralFat || !formData.bmr ||
+                !formData.muscle || !formData.metabolicAge || !formData.boneMass || !formData.physique) {
                 alert("请填写所有标有 * 的必填项");
                 return;
             }
@@ -66,6 +67,7 @@
             const weight = parseFloat(formData.weight);
             const bodyFat = parseFloat(formData.bodyFat);
             const water = parseFloat(formData.water);
+            const muscle = parseFloat(formData.muscle);
             const bmr = parseFloat(formData.bmr);
             const metabolicAge = parseFloat(formData.metabolicAge);
             const boneMass = parseFloat(formData.boneMass);
@@ -102,6 +104,9 @@
 
             // 3. 体脂肪量 (kg)
             report.fatMassKg = (weight * bodyFat / 100).toFixed(1);
+
+            // 肌肉量
+            report.muscleMass = muscle.toFixed(1);
 
             // 4. 水分
             const waterStandardLow = isMale ? 60 : 50;
@@ -221,13 +226,16 @@
 - 状态: ${result.waterStatus}
 - 建议每日饮水量: ${result.dailyWaterIntake} 公升
 
-4. 身体体格: ${result.physiqueText}
+4. 肌肉量
+- 实际: ${result.muscleMass}kg
 
-5. 营养建议 (神奇数字)
+5. 身体体格: ${result.physiqueText}
+
+6. 营养建议 (神奇数字)
 - 目标: ${formData.goal === 'lose' ? '减重' : '增重'}
 - 每日热量建议: 不超过 ${result.magicNumber} kcal
 
-6. 身体状态
+7. 身体状态
 - 新陈代谢年龄: ${formData.metabolicAge}岁 (${result.metaAgeStatus})
 - 骨量: ${formData.boneMass}kg (${result.boneResult})
 - 内脏脂肪: ${formData.visceralFat} (${result.vFatStatus})
@@ -277,7 +285,7 @@ ${result.recommendVitality ? '*** 警告：内脏脂肪严重超标，强烈建�
                         <div className="grid grid-cols-2 gap-4">
                             <div className="input-group">
                                 <label className="input-label required">顾客名字</label>
-                                <input name="name" type="text" className="input-field" value={formData.name} onChange={handleChange} />
+                                <input name="name" type="text" className="input-field" value={formData.name} onChange={handleChange} required />
                             </div>
                             <div className="input-group">
                                 <label className="input-label">联络号码</label>
@@ -288,25 +296,25 @@ ${result.recommendVitality ? '*** 警告：内脏脂肪严重超标，强烈建�
                         <div className="grid grid-cols-2 gap-4">
                             <div className="input-group">
                                 <label className="input-label required">性别</label>
-                                <select name="gender" className="input-field" value={formData.gender} onChange={handleChange}>
+                                <select name="gender" className="input-field" value={formData.gender} onChange={handleChange} required>
                                     <option value="female">女</option>
                                     <option value="male">男</option>
                                 </select>
                             </div>
                              <div className="input-group">
                                 <label className="input-label required">年龄</label>
-                                <input name="age" type="number" className="input-field" value={formData.age} onChange={handleChange} />
+                                <input name="age" type="number" className="input-field" value={formData.age} onChange={handleChange} required />
                             </div>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-4">
                             <div className="input-group">
                                 <label className="input-label required">身高 (cm)</label>
-                                <input name="height" type="number" className="input-field" value={formData.height} onChange={handleChange} />
+                                <input name="height" type="number" className="input-field" value={formData.height} onChange={handleChange} required />
                             </div>
                             <div className="input-group">
                                 <label className="input-label required">体重 (kg)</label>
-                                <input name="weight" type="number" className="input-field" value={formData.weight} onChange={handleChange} />
+                                <input name="weight" type="number" className="input-field" value={formData.weight} onChange={handleChange} required />
                             </div>
                         </div>
                         
@@ -315,35 +323,36 @@ ${result.recommendVitality ? '*** 警告：内脏脂肪严重超标，强烈建�
                              <div className="grid grid-cols-2 gap-4">
                                 <div className="input-group">
                                     <label className="input-label required">体脂肪 (%)</label>
-                                    <input name="bodyFat" type="number" className="input-field" value={formData.bodyFat} onChange={handleChange} />
+                                    <input name="bodyFat" type="number" className="input-field" value={formData.bodyFat} onChange={handleChange} required />
                                 </div>
                                 <div className="input-group">
                                     <label className="input-label required">水分 (%)</label>
-                                    <input name="water" type="number" className="input-field" value={formData.water} onChange={handleChange} />
+                                    <input name="water" type="number" className="input-field" value={formData.water} onChange={handleChange} required />
                                 </div>
                                 <div className="input-group">
-                                    <label className="input-label">肌肉量 (kg)</label>
-                                    <input name="muscle" type="number" className="input-field" value={formData.muscle} onChange={handleChange} />
+                                    <label className="input-label required">肌肉量 (kg)</label>
+                                    <input name="muscle" type="number" className="input-field" value={formData.muscle} onChange={handleChange} required />
                                 </div>
                                 <div className="input-group">
                                     <label className="input-label required">骨量 (kg)</label>
-                                    <input name="boneMass" type="number" className="input-field" value={formData.boneMass} onChange={handleChange} />
+                                    <input name="boneMass" type="number" className="input-field" value={formData.boneMass} onChange={handleChange} required />
                                 </div>
                                 <div className="input-group">
                                     <label className="input-label required">内脏脂肪 (1-59)</label>
-                                    <input name="visceralFat" type="number" className="input-field" value={formData.visceralFat} onChange={handleChange} />
+                                    <input name="visceralFat" type="number" className="input-field" value={formData.visceralFat} onChange={handleChange} required />
                                 </div>
                                 <div className="input-group">
                                     <label className="input-label required">基础代谢 (BMR)</label>
-                                    <input name="bmr" type="number" className="input-field" value={formData.bmr} onChange={handleChange} />
+                                    <input name="bmr" type="number" className="input-field" value={formData.bmr} onChange={handleChange} required />
                                 </div>
                                 <div className="input-group">
                                     <label className="input-label required">新陈代谢年龄</label>
-                                    <input name="metabolicAge" type="number" className="input-field" value={formData.metabolicAge} onChange={handleChange} />
+                                    <input name="metabolicAge" type="number" className="input-field" value={formData.metabolicAge} onChange={handleChange} required />
                                 </div>
                                 <div className="input-group">
                                     <label className="input-label required">体型 (1-9)</label>
-                                    <select name="physique" className="input-field" value={formData.physique} onChange={handleChange}>
+                                    <select name="physique" className="input-field" value={formData.physique} onChange={handleChange} required>
+                                        <option value="" disabled>请选择体型</option>
                                         <option value="1">1 (隐性肥胖)</option>
                                         <option value="2">2 (肥胖)</option>
                                         <option value="3">3 (肥胖)</option>
@@ -358,9 +367,9 @@ ${result.recommendVitality ? '*** 警告：内脏脂肪严重超标，强烈建�
                             </div>
                         </div>
 
-                         <div className="input-group mt-4">
+                        <div className="input-group mt-4">
                             <label className="input-label required">顾客目标</label>
-                            <select name="goal" className="input-field bg-blue-50 border-blue-200" value={formData.goal} onChange={handleChange}>
+                            <select name="goal" className="input-field bg-blue-50 border-blue-200" value={formData.goal} onChange={handleChange} required>
                                 <option value="lose">我要减重 (Lose Weight)</option>
                                 <option value="gain">我要增重 (Gain Weight)</option>
                             </select>
@@ -407,6 +416,12 @@ ${result.recommendVitality ? '*** 警告：内脏脂肪严重超标，强烈建�
                                             需喝水: {result.dailyWaterIntake} L/日
                                         </div>
                                     </div>
+                                </div>
+
+                                <div className="bg-white p-3 rounded shadow-sm">
+                                    <div className="font-semibold text-gray-700 mb-1">肌肉量</div>
+                                    <div className="text-lg font-bold text-gray-800">{result.muscleMass} kg</div>
+                                    <div className="text-xs text-gray-500 mt-1">保持稳定运动与蛋白质摄入有助于维持肌肉量</div>
                                 </div>
 
                                 {/* Physique & Magic Number */}
