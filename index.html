@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>健康评估助手</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f3f4f6; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+        .input-group { margin-bottom: 12px; }
+        .input-label { display: block; font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 4px; }
+        .input-field { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; outline: none; transition: border-color 0.2s; }
+        .input-field:focus { border-color: #10b981; ring: 2px solid #10b981; }
+        .required::after { content: " *"; color: #ef4444; }
+    </style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+    const { useState } = React;
+
+    function App() {
+        // --- State Management ---
+        const [formData, setFormData] = useState({
+            name: '',
+            contact: '',
+            gender: 'female',
+            age: '',
+            height: '',
+            weight: '',
+            bodyFat: '',
+            water: '',
+            muscle: '',
+            physique: '5',
+            bmr: '',
+            metabolicAge: '',
+            boneMass: '',
+            visceralFat: '',
+            goal: 'lose' // lose (减重) or gain (增重)
+        });
+
+        const [result, setResult] = useState(null);
+
+        // --- Handle Input Change ---
+        const handleChange = (e) => {
+            const { name, value } = e.target;
+            setFormData(prev => ({ ...prev, [name]: value }));
+        };
+
+        // --- Calculation Logic ---
+        const calculateResults = () => {
+            // Validation
+            if (!formData.name || !formData.age || !formData.height || !formData.weight || 
+                !formData.bodyFat || !formData.water || !formData.visceralFat || !formData.bmr) {
+                alert("请填写所有标有 * 的必填项");
+                return;
+            }
+
+            const age = parseFloat(formData.age);
+            const height = parseFloat(formData.height);
+            const weight = parseFloat(formData.weight);
+            const bodyFat = parseFloat(formData.bodyFat);
+            const water = parseFloat(formData.water);
+            const bmr = parseFloat(formData.bmr);
+            const metabolicAge = parseFloat(formData.metabolicAge);
+            const boneMass = parseFloat(formData.boneMass);
+            const visceralFat = parseFloat(formData.visceralFat);
+            const isMale = formData.gender === 'male';
+
+            let report = {};
+
+            // 1. 标准体重
+            const standardWeight = isMale ? (height - 105) : (height - 110);
+            const weightDiff = weight - standardWeight;
+            report.standardWeight = standardWeight.toFixed(1);
+            report.weightControl = weightDiff > 0 ? `需要减 ${weightDiff.toFixed(1)} kg` : `需要增 ${Math.abs(weightDiff).toFixed(1)} kg`;
+            if (Math.abs(weightDiff) < 1) report.weightControl = "体重标准";
+
+            // 2. 标准脂肪率
+            let fatRangeLow, fatRangeHigh;
+            if (isMale) {
+                if (age < 30) { fatRangeLow = 12; fatRangeHigh = 19; }
+                else { fatRangeLow = 15; fatRangeHigh = 21; } // Age 30+
+            } else {
+                if (age < 30) { fatRangeLow = 17; fatRangeHigh = 24; }
+                else if (age < 40) { fatRangeLow = 21; fatRangeHigh = 27; }
+                else { fatRangeLow = 21; fatRangeHigh = 30; }
+            }
+            
+            let fatStatus = "";
+            if (bodyFat < fatRangeLow) fatStatus = `偏瘦 (需增脂 ${(fatRangeLow - bodyFat).toFixed(1)}%)`;
+            else if (bodyFat > fatRangeHigh) fatStatus = `超标 (需减脂 ${(bodyFat - fatRangeHigh).toFixed(1)}%)`;
+            else fatStatus = "标准";
+            
+            report.fatRange = `${fatRangeLow}% - ${fatRangeHigh}%`;
+            report.fatStatus = fatStatus;
+
+            // 3. 体脂肪量 (kg)
+            report.fatMassKg = (weight * bodyFat / 100).toFixed(1);
+
+            // 4. 水分
+            const waterStandardLow = isMale ? 60 : 50;
+            const waterStandardHigh = isMale ? 65 : 55;
+            let waterStatus = "";
+            if (water < waterStandardLow) {
+                waterStatus = `不足 (差 ${(waterStandardLow - water).toFixed(1)}%)`;
+            } else {
+                waterStatus = "水分充足";
+            }
+            report.waterRange = `${waterStandardLow}% - ${waterStandardHigh}%`;
+            report.waterStatus = waterStatus;
+            
+            // 每日需喝水
+            report.dailyWaterIntake = (weight / 20).toFixed(1);
+
+            // 5. 身体体格 (Physical Rating)
+            const physiqueMap = {
+                '1': '隐性肥胖 (健康差)',
+                '2': '肥胖 (需减重)',
+                '3': '过重 (需减重)',
+                '4': '营养不良 (缺乏肌肉)',
+                '5': '标准',
+                '6': '肌肉型 (运动)',
+                '7': '过瘦 (需增重)',
+                '8': '肌肉型 (运动)',
+                '9': '肌肉型 (运动)'
+            };
+            report.physiqueText = physiqueMap[formData.physique] || '未知';
+
+            // 6. 神奇数字 (Magic Number)
+            let baseMetabolism = isMale ? (bmr * 1.30) : (bmr * 1.25);
+            let magicNumber = 0;
+            const isLosing = formData.goal === 'lose';
+            
+            if (isLosing) {
+                // 减重
+                const deficit = age < 40 ? 500 : 300;
+                magicNumber = baseMetabolism - deficit;
+            } else {
+                // 增重
+                const surplus = age < 40 ? 500 : 300;
+                magicNumber = baseMetabolism + surplus;
+            }
+            report.magicNumber = Math.round(magicNumber);
+
+            // 7. 新陈代谢年龄
+            const ageDiff = metabolicAge - age;
+            let metaStatus = "";
+            if (metabolicAge <= age - 5) metaStatus = "极好 (年轻状态)";
+            else if (metabolicAge > age) metaStatus = `老化 (比实际老 ${Math.ceil(ageDiff)} 岁)`;
+            else metaStatus = "正常";
+            report.metaAgeStatus = metaStatus;
+
+            // 8. 骨量
+            let boneStandard = 0;
+            if (!isMale) {
+                if (weight < 50) boneStandard = 1.95;
+                else if (weight <= 75) boneStandard = 2.40;
+                else boneStandard = 2.95;
+            } else {
+                if (weight < 50) boneStandard = 2.65;
+                else if (weight <= 75) boneStandard = 3.26;
+                else boneStandard = 3.69;
+            }
+            report.boneResult = boneMass >= boneStandard ? "合格" : `低于标准 (标准: ${boneStandard}kg)`;
+
+            // 9. 内脏脂肪
+            let vFatStatus = "";
+            let vFatColor = "text-green-600";
+            let recommendVitality = false;
+
+            if (!isMale) { // Female
+                if (visceralFat <= 3) vFatStatus = "极好";
+                else if (visceralFat <= 6) vFatStatus = "健康";
+                else if (visceralFat <= 9) { vFatStatus = "健康不良 (需减肚腩)"; vFatColor = "text-orange-500"; }
+                else { vFatStatus = "红灯超标 (高风险)"; vFatColor = "text-red-600"; recommendVitality = true; }
+            } else { // Male
+                if (visceralFat <= 4) vFatStatus = "极好";
+                else if (visceralFat <= 8) vFatStatus = "健康";
+                else if (visceralFat <= 12) { vFatStatus = "健康不良 (需减肚腩)"; vFatColor = "text-orange-500"; }
+                else { vFatStatus = "红灯超标 (高风险)"; vFatColor = "text-red-600"; recommendVitality = true; }
+            }
+            report.vFatStatus = vFatStatus;
+            report.vFatColor = vFatColor;
+            report.recommendVitality = recommendVitality;
+
+            setResult(report);
+            
+            // Scroll to result
+            setTimeout(() => {
+                document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+        };
+
+        const copyToClipboard = () => {
+            if (!result) return;
+            const text = `
+【健康评估报告】
+姓名: ${formData.name}
+日期: ${new Date().toLocaleDateString()}
+------------------------
+1. 体重分析
+- 实际体重: ${formData.weight}kg
+- 标准体重: ${result.standardWeight}kg
+- 建议: ${result.weightControl}
+
+2. 体脂肪率
+- 实际: ${formData.bodyFat}%
+- 标准范围: ${result.fatRange}
+- 状态: ${result.fatStatus}
+- 脂肪重量: ${result.fatMassKg}kg
+
+3. 水分
+- 实际: ${formData.water}%
+- 标准范围: ${result.waterRange}
+- 状态: ${result.waterStatus}
+- 建议每日饮水量: ${result.dailyWaterIntake} 公升
+
+4. 身体体格: ${result.physiqueText}
+
+5. 营养建议 (神奇数字)
+- 目标: ${formData.goal === 'lose' ? '减重' : '增重'}
+- 每日热量建议: 不超过 ${result.magicNumber} kcal
+
+6. 身体状态
+- 新陈代谢年龄: ${formData.metabolicAge}岁 (${result.metaAgeStatus})
+- 骨量: ${formData.boneMass}kg (${result.boneResult})
+- 内脏脂肪: ${formData.visceralFat} (${result.vFatStatus})
+${result.recommendVitality ? '*** 警告：内脏脂肪严重超标，强烈建议搭配【活力水】改善 ***' : ''}
+            `;
+            
+            // 兼容性方案：优先尝试现代API，如果失败则使用传统方法
+            // 这解决了在非 https 环境下复制失效的问题
+            
+            const fallbackCopy = () => {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed"; 
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    alert("报告已复制！可直接发送给顾客。");
+                } catch (err) {
+                    alert("复制失败，请手动截图。");
+                }
+                document.body.removeChild(textArea);
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                    .then(() => alert("报告已复制！可直接发送给顾客。"))
+                    .catch(() => fallbackCopy());
+            } else {
+                fallbackCopy();
+            }
+        };
+
+        return (
+            <div className="max-w-md mx-auto min-h-screen bg-white shadow-lg overflow-hidden md:max-w-2xl">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-teal-500 to-green-500 p-6 text-white text-center">
+                    <h1 className="text-2xl font-bold">健康评估计算器</h1>
+                    <p className="text-sm opacity-90">专业教练版</p>
+                </div>
+
+                <div className="p-6">
+                    {/* Form Section */}
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="input-group">
+                                <label className="input-label required">顾客名字</label>
+                                <input name="name" type="text" className="input-field" value={formData.name} onChange={handleChange} />
+                            </div>
+                            <div className="input-group">
+                                <label className="input-label">联络号码</label>
+                                <input name="contact" type="text" className="input-field" value={formData.contact} onChange={handleChange} />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="input-group">
+                                <label className="input-label required">性别</label>
+                                <select name="gender" className="input-field" value={formData.gender} onChange={handleChange}>
+                                    <option value="female">女</option>
+                                    <option value="male">男</option>
+                                </select>
+                            </div>
+                             <div className="input-group">
+                                <label className="input-label required">年龄</label>
+                                <input name="age" type="number" className="input-field" value={formData.age} onChange={handleChange} />
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="input-group">
+                                <label className="input-label required">身高 (cm)</label>
+                                <input name="height" type="number" className="input-field" value={formData.height} onChange={handleChange} />
+                            </div>
+                            <div className="input-group">
+                                <label className="input-label required">体重 (kg)</label>
+                                <input name="weight" type="number" className="input-field" value={formData.weight} onChange={handleChange} />
+                            </div>
+                        </div>
+                        
+                        <div className="border-t pt-4 mt-2">
+                             <h3 className="text-lg font-semibold text-gray-700 mb-3">体测数据</h3>
+                             <div className="grid grid-cols-2 gap-4">
+                                <div className="input-group">
+                                    <label className="input-label required">体脂肪 (%)</label>
+                                    <input name="bodyFat" type="number" className="input-field" value={formData.bodyFat} onChange={handleChange} />
+                                </div>
+                                <div className="input-group">
+                                    <label className="input-label required">水分 (%)</label>
+                                    <input name="water" type="number" className="input-field" value={formData.water} onChange={handleChange} />
+                                </div>
+                                <div className="input-group">
+                                    <label className="input-label">肌肉量 (kg)</label>
+                                    <input name="muscle" type="number" className="input-field" value={formData.muscle} onChange={handleChange} />
+                                </div>
+                                <div className="input-group">
+                                    <label className="input-label required">骨量 (kg)</label>
+                                    <input name="boneMass" type="number" className="input-field" value={formData.boneMass} onChange={handleChange} />
+                                </div>
+                                <div className="input-group">
+                                    <label className="input-label required">内脏脂肪 (1-59)</label>
+                                    <input name="visceralFat" type="number" className="input-field" value={formData.visceralFat} onChange={handleChange} />
+                                </div>
+                                <div className="input-group">
+                                    <label className="input-label required">基础代谢 (BMR)</label>
+                                    <input name="bmr" type="number" className="input-field" value={formData.bmr} onChange={handleChange} />
+                                </div>
+                                <div className="input-group">
+                                    <label className="input-label required">新陈代谢年龄</label>
+                                    <input name="metabolicAge" type="number" className="input-field" value={formData.metabolicAge} onChange={handleChange} />
+                                </div>
+                                <div className="input-group">
+                                    <label className="input-label required">体型 (1-9)</label>
+                                    <select name="physique" className="input-field" value={formData.physique} onChange={handleChange}>
+                                        <option value="1">1 (隐性肥胖)</option>
+                                        <option value="2">2 (肥胖)</option>
+                                        <option value="3">3 (肥胖)</option>
+                                        <option value="4">4 (营养不良)</option>
+                                        <option value="5">5 (标准)</option>
+                                        <option value="6">6 (肌肉型)</option>
+                                        <option value="7">7 (过瘦)</option>
+                                        <option value="8">8 (肌肉型)</option>
+                                        <option value="9">9 (肌肉型)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                         <div className="input-group mt-4">
+                            <label className="input-label required">顾客目标</label>
+                            <select name="goal" className="input-field bg-blue-50 border-blue-200" value={formData.goal} onChange={handleChange}>
+                                <option value="lose">我要减重 (Lose Weight)</option>
+                                <option value="gain">我要增重 (Gain Weight)</option>
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">*这将影响神奇数字(Magic Number)的计算</p>
+                        </div>
+
+                        <button 
+                            onClick={calculateResults}
+                            className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-4 rounded-lg mt-6 shadow-md transition duration-200">
+                            生成评估报告
+                        </button>
+                    </div>
+
+                    {/* Result Section */}
+                    {result && (
+                        <div id="result-section" className="mt-8 bg-gray-50 border-t-4 border-teal-500 rounded-lg p-6 animate-fade-in">
+                            <h2 className="text-xl font-bold text-gray-800 mb-4 text-center">评估结果: {formData.name}</h2>
+                            
+                            <div className="space-y-4 text-sm">
+                                {/* Weight */}
+                                <div className="bg-white p-3 rounded shadow-sm">
+                                    <div className="flex justify-between font-semibold text-gray-700">
+                                        <span>标准体重</span>
+                                        <span>{result.standardWeight} kg</span>
+                                    </div>
+                                    <div className="text-right text-teal-600 font-bold mt-1">
+                                        建议: {result.weightControl}
+                                    </div>
+                                </div>
+
+                                {/* Fat & Water Grid */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-white p-3 rounded shadow-sm">
+                                        <div className="font-semibold text-gray-700 mb-1">体脂肪率</div>
+                                        <div className="text-xs text-gray-500">标准: {result.fatRange}</div>
+                                        <div className="mt-1 font-medium text-blue-600">{result.fatStatus}</div>
+                                        <div className="text-xs mt-1 text-gray-400">脂肪量: {result.fatMassKg}kg</div>
+                                    </div>
+                                    <div className="bg-white p-3 rounded shadow-sm">
+                                        <div className="font-semibold text-gray-700 mb-1">水分率</div>
+                                        <div className="text-xs text-gray-500">标准: {result.waterRange}</div>
+                                        <div className="mt-1 font-medium text-blue-600">{result.waterStatus}</div>
+                                        <div className="text-xs mt-1 font-bold text-teal-600">
+                                            需喝水: {result.dailyWaterIntake} L/日
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Physique & Magic Number */}
+                                <div className="bg-teal-50 p-4 rounded-lg border border-teal-100">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="font-bold text-gray-700">神奇数字 (Magic #)</span>
+                                        <span className="text-xl font-extrabold text-teal-700">{result.magicNumber} kcal</span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 text-right">每日建议摄入卡路里上限</p>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 gap-2">
+                                     <div className="flex justify-between border-b pb-2">
+                                        <span className="text-gray-600">体型判断</span>
+                                        <span className="font-medium">{result.physiqueText}</span>
+                                    </div>
+                                     <div className="flex justify-between border-b pb-2">
+                                        <span className="text-gray-600">新陈代谢年龄</span>
+                                        <span className="font-medium text-right">
+                                            {formData.metabolicAge}岁 <br/>
+                                            <span className="text-xs text-blue-500">({result.metaAgeStatus})</span>
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between border-b pb-2">
+                                        <span className="text-gray-600">骨量</span>
+                                        <span className="font-medium">{result.boneResult}</span>
+                                    </div>
+                                </div>
+
+                                {/* Visceral Fat Warning */}
+                                <div className={`p-3 rounded border ${result.recommendVitality ? 'bg-red-50 border-red-200' : 'bg-white'}`}>
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-semibold text-gray-700">内脏脂肪</span>
+                                        <span className={`font-bold ${result.vFatColor}`}>
+                                            {formData.visceralFat} ({result.vFatStatus})
+                                        </span>
+                                    </div>
+                                    {result.recommendVitality && (
+                                        <div className="mt-2 text-sm text-red-600 font-bold text-center bg-red-100 p-2 rounded">
+                                            ⚠️ 警报：建议搭配【活力水】改善
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={copyToClipboard}
+                                className="w-full mt-4 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded flex items-center justify-center gap-2">
+                                <span>📋 复制报告 (发给顾客)</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+</body>
+</html>
